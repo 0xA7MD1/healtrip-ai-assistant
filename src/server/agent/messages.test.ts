@@ -78,8 +78,23 @@ describe("sanitizeHistory", () => {
 });
 
 describe("detectLanguage", () => {
-  it("detects Arabic script", () => {
-    expect(detectLanguage("عندي ألم في الصدر")).toBe("ar");
-    expect(detectLanguage("chest pain")).toBe("en");
+  it("follows the script of the patient's message", () => {
+    expect(detectLanguage(["عندي ألم في الصدر"])).toBe("ar");
+    expect(detectLanguage(["I have chest pain since this morning"])).toBe("en");
+  });
+
+  it("keeps the conversation's language when an answer is too short to tell", () => {
+    expect(detectLanguage(["عندي ألم في الصدر", "40"])).toBe("ar");
+    expect(detectLanguage(["أبحث عن طبيب قلب", "Al Khobar"])).toBe("ar");
+    expect(detectLanguage(["I need a cardiologist please", "Riyadh"])).toBe("en");
+  });
+
+  it("falls back to the UI language when no message shows one", () => {
+    expect(detectLanguage(["ok"], "ar")).toBe("ar");
+    expect(detectLanguage(["40"])).toBe("en");
+    expect(sanitizeHistory(body([user("40")]), "ar")).toMatchObject({
+      ok: true,
+      language: "ar",
+    });
   });
 });

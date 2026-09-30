@@ -5,10 +5,12 @@ import {
   streamText,
   toUIMessageStream,
 } from "ai";
+import { cookies } from "next/headers";
 import { TOOL_NAMES } from "@/lib/agent-contracts";
+import { LOCALE_COOKIE, parseLocale } from "@/lib/locale-config";
 import { emergencyStream } from "@/server/agent/emergency";
 import { newTurnState } from "@/server/agent/guard";
-import { ChatBodySchema, detectLanguage, sanitizeHistory } from "@/server/agent/messages";
+import { ChatBodySchema, sanitizeHistory } from "@/server/agent/messages";
 import { getChatModel } from "@/server/agent/models";
 import { buildInstructions } from "@/server/agent/prompt";
 import { createAgentTools } from "@/server/agent/tools";
@@ -48,12 +50,14 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return errorResponse(400, "invalid_request", "Invalid chat request.", requestId, parsed.error.issues);
   }
-  const history = sanitizeHistory(parsed.data);
+  // The UI language, from the cookie the layout renders with, settles replies like "40" or "Riyadh".
+  const uiLocale = parseLocale((await cookies()).get(LOCALE_COOKIE)?.value);
+  const history = sanitizeHistory(parsed.data, uiLocale);
   if (!history.ok) {
     return errorResponse(400, history.code, "Invalid chat request.", requestId);
   }
 
-  const language = detectLanguage(history.lastUserText);
+  const { language } = history;
   // The last three patient messages, not just the last one: red flags usually arrive as the
   // answer to a clarifying question ("chest pain", then "yes, I'm sweating").
   const gate = screenMessage(history.recentUserText);

@@ -33,7 +33,7 @@ export const ChatBodySchema = z.object({
 export type ChatBody = z.infer<typeof ChatBodySchema>;
 
 export type SanitizeResult =
-  | { ok: true; messages: UIMessage[]; lastUserText: string; recentUserText: string }
+  | { ok: true; messages: UIMessage[]; lastUserText: string; recentUserText: string; language: "ar" | "en" }
   | { ok: false; code: "last_message_not_user" | "message_too_long" | "history_too_long" | "empty_message" };
 
 function textOf(parts: ChatBody["messages"][number]["parts"]): string {
@@ -43,7 +43,8 @@ function textOf(parts: ChatBody["messages"][number]["parts"]): string {
     .trim();
 }
 
-export function sanitizeHistory(body: ChatBody): SanitizeResult {
+/** `uiLocale` decides the reply language when the patient's words cannot ("40", "Riyadh"). */
+export function sanitizeHistory(body: ChatBody, uiLocale?: "ar" | "en"): SanitizeResult {
   const last = body.messages.at(-1)!;
   if (last.role !== "user") return { ok: false, code: "last_message_not_user" };
 
@@ -58,16 +59,25 @@ export function sanitizeHistory(body: ChatBody): SanitizeResult {
   const total = messages.reduce((n, m) => n + (m.parts[0] as { text: string }).text.length, 0);
   if (total > LIMITS.historyChars) return { ok: false, code: "history_too_long" };
 
+  const userTexts = body.messages.filter((m) => m.role === "user").map((m) => textOf(m.parts));
   // The last three patient messages, so "chest pain" then "and I'm sweating" is still caught.
-  const recentUserText = body.messages
-    .filter((m) => m.role === "user")
-    .slice(-3)
-    .map((m) => textOf(m.parts))
-    .join(". ");
+  const recentUserText = userTexts.slice(-3).join(". ");
 
-  return { ok: true, messages, lastUserText, recentUserText };
+  return { ok: true, messages, lastUserText, recentUserText, language: detectLanguage(userTexts, uiLocale) };
 }
 
-export function detectLanguage(text: string): "ar" | "en" {
-  return /[؀-ۿ]/.test(text) ? "ar" : "en";
+const ARABIC_LETTER = /[؀-ۿ]/;
+const LATIN_WORD = /[a-z]{2,}/gi;
+
+/**
+ * The reply language, from the patient's latest message that shows one. A short answer such as
+ * "40", "Riyadh" or "Al Khobar" does not, so an Arabic conversation stays Arabic. When no message
+ * shows a language, the UI language decides.
+ */
+export function detectLanguage(userTexts: readonly string[], uiLocale: "ar" | "en" = "en"): "ar" | "en" {
+  for (const text of [...userTexts].reverse()) {
+    if (ARABIC_LETTER.test(text)) return "ar";
+    if ((text.match(LATIN_WORD)?.length ?? 0) >= 3) return "en";
+  }
+  return uiLocale;
 }
