@@ -4,7 +4,7 @@ A prototype chat assistant that helps a patient decide their next medical step, 
 
 The assistant **never invents a doctor, hospital, fee or phone number**. The model understands the conversation. Deterministic, tested code decides urgency and what may be shown.
 
-> **Live demo:** _added after deployment_ · **Stack:** Next.js 16, React 19, Vercel AI SDK 7, assistant-ui, shadcn/ui, SQLite + Drizzle, Gemini (free tier) with Groq fallback.
+> **Live demo:** _added after deployment_ · **Stack:** Next.js 16, React 19, Vercel AI SDK 7, assistant-ui, shadcn/ui, SQLite + Drizzle, Groq and Gemini free tiers behind a model router.
 
 ---
 
@@ -32,11 +32,11 @@ pnpm dev                        # http://localhost:3000
 
 | Command | What it runs |
 |---|---|
-| `pnpm test` | 59 unit tests: safety gate, urgency rules, recommendation guard, input sanitising, reply language, rate limiter |
+| `pnpm test` | 76 unit tests: safety gate, urgency rules, recommendation guard, input sanitising, reply language, model router, rate limiter |
 | `pnpm eval` | 12 end-to-end conversations against the running server with the real model (see [Evaluation](#evaluation)) |
 | `pnpm lint` / `pnpm typecheck` / `pnpm build` | Same checks as CI (`.github/workflows/ci.yml`) |
 
-Models are configuration, not code: `LLM_PRIMARY_MODEL=google:gemini-3.8-flash`, `LLM_FALLBACK_MODEL=groq:openai/gpt-oss-120b`.
+Models and keys are configuration, not code: `LLM_MODELS` holds the model ladder, and `GROQ_API_KEY_2`, `GOOGLE_GENERATIVE_AI_API_KEY_2`… add keys (see [Models and quotas](#models-and-quotas)).
 
 ---
 
@@ -54,13 +54,14 @@ flowchart LR
     GATE{{Pre-LLM<br/>emergency gate}}
     EMS[Fixed SOS reply<br/>no model]
     AGENT[Agent loop<br/>streamText, max 6 steps]
+    ROUTER[Model router<br/>tiers, round-robin,<br/>cooldown, failover]
     GUARD[Recommendation<br/>guard]
     SVC[Provider service]
   end
 
-  subgraph Models
-    GEM[Gemini<br/>primary]
-    GROQ[Groq<br/>fallback on 429/5xx]
+  subgraph Models["Free-tier models"]
+    GROQ[Groq<br/>gpt-oss-120b, qwen3.8, gpt-oss-20b]
+    GEM[Gemini<br/>3.8 Flash, 3.7 Flash, 3.5 Flash Lite]
   end
 
   DB[(SQLite catalog<br/>read-only, bundled)]
@@ -68,8 +69,9 @@ flowchart LR
   UI -- "POST /api/chat (stream)" --> VAL --> GATE
   GATE -- emergency --> EMS --> SVC
   GATE -- otherwise --> RL --> AGENT
-  AGENT <--> GEM
-  AGENT -. fallback .-> GROQ
+  AGENT <--> ROUTER
+  ROUTER <--> GROQ
+  ROUTER <--> GEM
   AGENT -- tools --> SVC
   AGENT -- present_recommendation --> GUARD
   SVC --> DB
@@ -116,6 +118,7 @@ sequenceDiagram
 | Which doctors exist, their fees and availability | Database | `src/server/providers/service.ts` |
 | Which doctors may be shown | Guard (the model only passes ids) | `src/server/agent/guard.ts` |
 | Rendering | UI, from the server's records, never model text | `src/components/healtrip/*` |
+| Which model answers | Router: tiers, round-robin, cooldown | `src/server/agent/router.ts` |
 
 ### The four tools
 
@@ -125,6 +128,23 @@ sequenceDiagram
 | `search_providers` | specialty, city, language, filters | doctors, searched cities, `ok` / `expanded_to_nearby_cities` / `no_match` / `unknown_city` | step line |
 | `find_emergency_facilities` | city | emergency numbers + hospitals with a **verified** 24/7 ER | SOS banner |
 | `present_recommendation` | 1–3 doctor ids, or `[]` | card built by the server: urgency, next step, doctors | recommendation card |
+
+### Models and quotas
+
+Free tiers limit each **model** separately, per Gemini project and per Groq organisation. So the router treats every model × key pair as a candidate with its own quota:
+
+| Tier | Groq (each 30 RPM, 8K TPM, 1K RPD) | Gemini |
+|---|---|---|
+| 1 | `openai/gpt-oss-120b` | `gemini-3.8-flash` (5 RPM, 20 RPD) |
+| 2 | `qwen/qwen3.8-27b` | `gemini-3.7-flash` (5 RPM, 20 RPD) |
+| 3 | `openai/gpt-oss-20b` | `gemini-3.5-flash-lite` (15 RPM, 500 RPD) |
+
+- **Spread, not drained.** Turns rotate over the models and keys of the first tier. A lower tier answers only while every candidate above it is cooling.
+- **Failover in the same request.** A call that fails before answering moves to the next candidate at once. The patient gets the reply a moment later, not an error. The failed candidate rests for the provider's retry-after, otherwise 1, then 5, then 30 minutes. A spent daily quota rests at least an hour, and a revoked key takes all its models out for an hour.
+- **One model per turn.** The steps of a turn stay on the candidate that answered the first one, unless it fails. Switching between turns is safe because the history is text only.
+- **Measured.** Each step logs the candidate (`groq#2:openai/gpt-oss-120b`, never the key) and its input and output tokens. `/api/health` shows the ladder and how many keys each provider has.
+- **Capacity.** One key per provider gives about 3,000 Groq and 540 Gemini requests a day, roughly 850 recommendations at about four calls each. Extra keys (`GROQ_API_KEY_2`, …) add redundancy: a revoked or exhausted key is skipped, and keys rotate without downtime.
+- **Safety does not depend on the model.** A weaker model that fumbles a tool call gets a guard rejection, never an invented doctor.
 
 ---
 
@@ -198,7 +218,7 @@ erDiagram
 - **Urgency is enforced in code.** The guard refuses recommendations before red-flag screening or during an emergency. Once an assessment says emergency, the next step is forced to fetch the emergency numbers, and after that no re-assessment in the same turn can unlock doctors.
 - **No raw model reasoning reaches the patient.** It is not bound by the prompt and could speculate about a diagnosis. The UI shows the tool steps instead.
 - **The client history is untrusted.** Only user and assistant *text* reaches the model. Tool results, reasoning and any client `system`/`tools` fields are dropped. The chat is stateless, and nothing is stored.
-- **Logs carry no PHI.** They hold the request id, message counts, tool names, model id and gate level, never message text. The id is returned as `x-request-id`.
+- **Logs carry no PHI.** They hold the request id, message counts, tool names, the model that answered, token counts and gate level, never message text. The id is returned as `x-request-id`.
 - **Abuse limits.**
   - Per-IP rate limit (12/min) on the model path, message and history size caps, body size cap.
   - Security headers.
@@ -235,9 +255,9 @@ erDiagram
 | One Next.js app (UI and API routes) on Vercel | One deploy, shared types between agent and UI, streaming built in | The API is not a separate service yet; the provider service is already isolated so it can move |
 | SQLite bundled read-only | Zero infrastructure; the catalog is small and changes by redeploy | Writes (bookings, reviews) would need a hosted DB; `DATABASE_URL` is ready for Turso |
 | Structured catalog + SQL, **no RAG** | Doctor matching is filtering (specialty, city, language, fee), which SQL answers exactly | Free-text knowledge (e.g. hospital descriptions) would need retrieval later |
-| Vercel AI SDK, no LangChain | Tool calling, streaming, retries and provider fallback in one small dependency | Fewer ready-made agent patterns |
+| Vercel AI SDK, no LangChain | Tool calling, streaming and a provider-neutral model interface the router plugs into | Fewer ready-made agent patterns |
 | Safety in code, language in the model | Urgency, emergency and "what may be shown" are testable and cannot be talked out of | The rules are simple and not clinically validated |
-| Free models with automatic fallback | Zero running cost for the demo; switching models is an env change | Free-tier quotas are tight; tool outputs sent to the model are compacted to fit |
+| Free models behind an in-house router, no paid gateway | Zero running cost; quotas of several models and keys add up; changing the ladder is an env change | Weaker tiers may phrase replies less well; tool outputs sent to the model are compacted to fit |
 | Stateless chat | No patient data at rest, simpler compliance story | No conversation history across devices |
 | assistant-ui + shadcn/ui | Production chat primitives (streaming, tool UI, RTL) with source copied into the repo, so fully customisable | Some library code lives in the repo |
 | Deterministic follow-up chips | Derived from tool results; free and instant | Less varied than model-generated suggestions |
@@ -258,7 +278,7 @@ erDiagram
 
 - Doctors are sample profiles. Hospitals, emergency numbers and fee ranges come from public sources gathered for this prototype.
 - Saudi Arabia first, with a few medical-travel destinations (UAE, Germany, Turkey). More countries are data, not code.
-- The rate limiter is in-memory per server instance. Production would use a shared store (e.g. Upstash).
+- The rate limiter and the router's cooldowns are in-memory per server instance, so a fresh instance may spend one failed call to learn a cooldown. Production would use a shared store (e.g. Upstash).
 - Out of scope: authentication, booking, payments, file uploads, voice.
 
 ---
@@ -270,11 +290,11 @@ src/
   app/
     api/chat/route.ts          POST: gate → agent loop → UI message stream
     api/providers/route.ts     GET: doctor search (REST)
-    api/health/route.ts        GET: liveness + catalog check
+    api/health/route.ts        GET: liveness, catalog check, model ladder and key counts
     assistant.tsx              chat runtime, toolkit, follow-up chips
     layout.tsx                 fonts, locale cookie → lang/dir
   server/
-    agent/                     models (fallback), prompt, tools, guard, emergency reply, history sanitiser
+    agent/                     model router, prompt, tools, guard, emergency reply, history sanitiser
     triage/                    pre-LLM signals + urgency rules (unit-tested)
     providers/                 catalog queries and input schemas
     db/                        Drizzle schema and client

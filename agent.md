@@ -21,13 +21,13 @@
 
 - **الـbackend:**
   - `POST /api/chat`: validation ← تنظيف الـhistory (النص بس) ← بوابة طوارئ على آخر 3 رسائل للمريض (رد الطوارئ ما عليه rate limit) ← rate limit ← agent (أقصاها 6 خطوات، والـreasoning الخام ما يوصل للمريض)
-  - `src/server/agent/`: الموديلات (Gemini، ويتحوّل لـGroq تلقائياً)، والـprompt، والـtools الأربعة، والـguard، ورد الطوارئ الثابت
+  - `src/server/agent/`: الـmodel router (سلّم موديلات Groq وGemini، يوزّع الطلبات على الموديلات والمفاتيح، ويحوّل فوراً لو موديل طاح)، والـprompt، والـtools الأربعة، والـguard، ورد الطوارئ الثابت
 - **الواجهة:**
   - assistant-ui وshadcn، عربي/إنجليزي، والـRTL يتحفظ في cookie
   - الترحيب وفيه 4 كروت، وكروت الأطباء، وبانر الطوارئ، وخطوات التحليل، والتفكير، وfollow-up chips (بدون LLM)
   - رسائل الأخطاء مترجمة
 - **الاختبارات:**
-  - `pnpm test`: 59 unit test
+  - `pnpm test`: 76 unit test
   - `pnpm eval`: 12 حالة end-to-end مع الموديل الحقيقي (يحتاج `pnpm dev` شغّال). آخر تشغيل كامل 11/11، قبل ما تنضاف `emergency-after-question`، وهي تنجح بدون موديل
 - **`README.md`:** فيه Mermaid للـarchitecture والـsequence والـERD، والأمان، والـevals، والقرارات، والربط مع HealTrip+
 - **الـbuild وlint (على `src`) وtypecheck:** كلها نظيفة
@@ -37,7 +37,7 @@
 1. **`git push origin dev`** (بأمرك). بعده ينضاف كل شي لـPR #2، ويشتغل الـCI.
 2. **Vercel:**
    - تربط الـrepo
-   - تحط `GOOGLE_GENERATIVE_AI_API_KEY` و`GROQ_API_KEY` (و`LLM_PRIMARY_MODEL` و`LLM_FALLBACK_MODEL` لو تبي تغيّرها) في Environment Variables
+   - تحط `GOOGLE_GENERATIVE_AI_API_KEY` و`GROQ_API_KEY` في Environment Variables، ولو عندك مفاتيح زيادة: `GROQ_API_KEY_2` و`GOOGLE_GENERATIVE_AI_API_KEY_2`… (و`LLM_MODELS` لو تبي تغيّر السلّم)
    - أمر الـbuild الافتراضي (`pnpm build`) يسوي seed للـDB بنفسه
 3. **رابط الديمو:** تحطه في `README.md` مكان «_added after deployment_».
 4. **دمج PR #2** إلى `main` (بأمرك)، وتغيّر عنوانه لـ«Working product».
