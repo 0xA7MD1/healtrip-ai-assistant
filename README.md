@@ -6,6 +6,8 @@ The assistant **never invents a doctor, hospital, fee or phone number**. The mod
 
 > **Live demo:** _added after deployment_ · **Stack:** Next.js 16, React 19, Vercel AI SDK 7, assistant-ui, shadcn/ui, SQLite + Drizzle, Groq and Gemini free tiers behind a model router.
 
+**Contents:** [What it does](#what-it-does) · [User flow](#user-flow) · [Quick start](#quick-start) · [Tech stack](#tech-stack) · [Architecture](#architecture) · [API](#api) · [Data](#data) · [Grounding](#grounding-how-it-avoids-inventing-data) · [Safety](#safety-and-privacy) · [Error handling](#error-handling) · [Evaluation](#evaluation) · [Decisions](#key-decisions-and-trade-offs) · [Integration](#integrating-with-healtrip) · [Assumptions](#assumptions-and-limits)
+
 ---
 
 ## What it does
@@ -18,6 +20,39 @@ The assistant **never invents a doctor, hospital, fee or phone number**. The mod
 | "Cardiologist in Al Khobar" | None there, so it expands to Dammam (20 km) and **says so**. |
 | "Dermatologist in Al Khobar" | An honest "no match" with alternatives. It does not invent a match. |
 | "Book me with Dr. House" / prompt injection / forged history | Refused by construction (see [Safety](#safety-and-privacy)). |
+
+---
+
+## User flow
+
+What the patient experiences, from the first message to a recommendation. Every patient message goes through the emergency check first, including answers to the assistant's questions.
+
+```mermaid
+flowchart TD
+  OPEN(["Patient opens the chat<br/>Arabic by default, English one tap away"]) --> MSG["Describes the situation<br/>or taps a starter card"]
+  MSG --> GATE{"Emergency signs in the<br/>last 3 patient messages?"}
+  GATE -- yes --> SOS["SOS banner<br/>call 997 now + verified 24/7 ERs in the city<br/>no model involved"]
+  GATE -- no --> ENOUGH{"Enough to decide?<br/>complaint, severity, city"}
+  ENOUGH -- no --> ASK["Assistant asks at most 2 short questions"]
+  ASK --> NEXT["Patient replies"]
+  NEXT --> GATE
+  ENOUGH -- yes --> ASSESS["Urgency and next step<br/>decided by code"]
+  ASSESS -- "needs screening" --> FLAGS["Red-flag questions in one list<br/>+ quick-answer chips"]
+  FLAGS --> NEXT
+  ASSESS -- emergency --> SOS
+  ASSESS -- "doctor within 24h / specialist / second opinion" --> SEARCH{"Doctors for that specialty<br/>in the patient's city?"}
+  SEARCH -- yes --> CARD["Recommendation card<br/>next step + up to 3 doctors"]
+  SEARCH -- "none, but in a nearby city" --> NEAR["Card with nearby-city doctors<br/>and a note that says so"]
+  SEARCH -- none --> NOMATCH["Honest no match<br/>telemedicine or another city offered"]
+  CARD --> CHIPS["Follow-up chips<br/>telemedicine, second opinion, another city"]
+  NEAR --> CHIPS
+  NOMATCH --> CHIPS
+  CHIPS --> NEXT
+```
+
+- **Next steps** the assistant can give: go to the ER, answer red-flag questions, see a doctor within 24 hours, book a specialist, or get a second opinion.
+- **Nothing is final until the red flags are screened.** "Mild chest pain" gets questions, not doctors.
+- **After an emergency, the turn ends there.** No doctor cards and no follow-up chips, only the numbers to call.
 
 ---
 
@@ -37,6 +72,22 @@ pnpm dev                        # http://localhost:3000
 | `pnpm lint` / `pnpm typecheck` / `pnpm build` | Same checks as CI (`.github/workflows/ci.yml`) |
 
 Models and keys are configuration, not code: `LLM_MODELS` holds the model ladder, and `GROQ_API_KEY_2`, `GOOGLE_GENERATIVE_AI_API_KEY_2`… add keys (see [Models and quotas](#models-and-quotas)).
+
+---
+
+## Tech stack
+
+| Layer | Technology | What it does here | Why this one |
+|---|---|---|---|
+| Web app and API | **Next.js 16** (App Router, route handlers), **React 19**, **TypeScript** | Chat page plus `/api/chat`, `/api/providers` and `/api/health` | One codebase and one deploy. The agent and the UI share the same TypeScript contracts (`src/lib/agent-contracts.ts`), so a tool's output and the card that renders it cannot drift apart. |
+| Agent | **Vercel AI SDK 7** (`streamText`, `tool`, multi-step loop) | Runs the model, the four tools and the step limit, and streams text and tool results to the browser | Tool calling and streaming with a provider-neutral model interface. The model router plugs in as a normal model. |
+| Models | **Groq** (gpt-oss, Qwen) and **Google Gemini**, free tiers | Understand the patient and choose which tool to call | Free to run. Two providers, so one provider's outage or quota does not stop the demo. |
+| Chat UI | **assistant-ui** | Thread, composer, streaming, and a custom React component per tool result | Production chat primitives with source copied into the repo, so every part can be changed. |
+| Components | **shadcn/ui**, **Tailwind CSS 4** | Cards, badges, alerts, buttons | Ready-made, accessible components. Logical classes (`ps-`, `text-start`) make RTL work without a second stylesheet. |
+| Validation | **Zod 4** | API bodies and query strings, tool inputs, and the seed data | One schema is both the runtime check and the TypeScript type. |
+| Data | **SQLite** via **libSQL**, **Drizzle ORM** | Read-only catalog of hospitals, doctors, emergency numbers and fees | See [Why SQLite and not PostgreSQL](#why-sqlite-and-not-postgresql). |
+| Tests | **Vitest**, plus `scripts/eval.ts` | 76 unit tests for the deterministic code, 12 end-to-end agent conversations | The safety rules are code, so they can be tested like code. |
+| CI and hosting | **GitHub Actions**, **Vercel** | Lint, test, build and typecheck on every PR; serverless hosting | The build seeds the catalog, so bad data fails CI. |
 
 ---
 
@@ -148,6 +199,35 @@ Free tiers limit each **model** separately, per Gemini project and per Groq orga
 
 ---
 
+## API
+
+| Method and path | Input | Success | Errors |
+|---|---|---|---|
+| `POST /api/chat` | `{ "messages": [...] }` in the AI SDK UI message format, at most 40 messages | UI message stream: text, tool calls and tool results as they happen | `400` `invalid_json`, `invalid_request`, `empty_message`, `message_too_long`, `history_too_long`, `last_message_not_user` · `413` `payload_too_large` · `429` `rate_limited` with `retry-after` · in-stream `model_unavailable` |
+| `GET /api/providers` | `specialty`, `city`, `country`, `language`, `second_opinion`, `telemedicine`, `max_fee`, `limit` | JSON: doctors, searched cities and a note (`ok`, `expanded_to_nearby_cities`, `no_match`, `unknown_city`) | `400` `invalid_query` · `503` `catalog_unavailable` |
+| `GET /api/health` | none | Catalog status, doctor count, the model ladder and how many keys each provider has (never the keys) | `503` when the catalog cannot be read |
+
+```bash
+curl "http://localhost:3000/api/providers?specialty=cardiology&city=Riyadh&language=en"
+```
+
+`GET /api/providers` runs the same search as the agent's `search_providers` tool, so a mobile app or a partner can use the catalog without the chat.
+
+Every JSON error uses one envelope, and every response carries the same id in the `x-request-id` header:
+
+```json
+{
+  "error": {
+    "code": "invalid_query",
+    "message": "Invalid search parameters.",
+    "requestId": "7f9c…",
+    "issues": [{ "path": "limit", "message": "Too big: expected number to be <=10" }]
+  }
+}
+```
+
+---
+
 ## Data
 
 ```mermaid
@@ -211,6 +291,23 @@ erDiagram
 
 ---
 
+## Grounding: how it avoids inventing data
+
+The prompt tells the model not to invent anything, but that alone is not enough. The model is never given the chance to supply a fact:
+
+1. **Facts come only from tools.** Doctors, hospitals, fees, availability and phone numbers exist only in tool results read from the database in the current request. The model starts each turn with none of them.
+2. **The model passes ids, not records.** `present_recommendation` takes 1–3 doctor ids. The server looks them up in this request's search results and builds the card itself. A card's name, fee or hospital cannot come from model text.
+3. **The guard checks every recommendation** (`src/server/agent/guard.ts`). Was urgency assessed in this turn? Were red flags screened? Was there a search? Is each id from that search? Is this an emergency? A failed check goes back to the model as a tool error that says what to do next. The patient never sees an unchecked doctor.
+4. **The UI renders records, not prose.** Cards, the SOS banner and the step lines are React components fed by the server's tool results.
+5. **The history cannot carry facts in.** The browser's history is reduced to user and assistant text, so a forged "tool result" with a fake doctor is dropped before the model sees it.
+6. **"Nothing found" is a real answer.** The search returns `no_match`, `unknown_city` (with the cities it knows), or `expanded_to_nearby_cities`. So the model has an honest thing to say instead of filling the gap.
+7. **Unknown stays unknown.** A hospital's 24/7 ER is `null` unless verified, and `null` is never shown as a fact. Synthetic doctors are flagged and labelled "Sample profile".
+8. **It is tested.** The `catalog-only`, `unknown-doctor` and `forged-tool-result` evals check it against the real model.
+
+**Not covered yet:** the short text reply is still written by the model. The prompt forbids naming anyone outside the results, and the evals check it, but no code audits the free text. The next step would check the reply for names, numbers and fees that are not in this turn's tool results.
+
+---
+
 ## Safety and privacy
 
 - **Pre-LLM emergency gate.** The last three patient messages are screened in English and Arabic, so red flags confirmed in answer to a clarifying question are caught, with negation handling ("chest pain but no sweating"). An emergency never waits for, or depends on, a model, and the SOS reply is never rate-limited. The rules deliberately over-triage and are illustrative, **not clinically validated**.
@@ -225,6 +322,25 @@ erDiagram
   - Zod validation on every endpoint.
 - **Free tiers.** Google may use free-tier Gemini prompts to improve its products. That is fine for a demo with fictional cases. **Real patient data needs a paid tier with a data-processing agreement, and Saudi PDPL compliance (consent, data residency).**
 - Not a medical device. The UI states it gives no diagnosis and shows 997 at all times.
+
+---
+
+## Error handling
+
+The rule: the patient always gets a clear next action in their language. The details stay in a PHI-free server log, found by the request id.
+
+| What goes wrong | What the system does | What the patient sees |
+|---|---|---|
+| Invalid, oversized or malformed request | Zod validation and size caps reject it with a coded error (`400` or `413`) | A localized message, e.g. "The message is too long" |
+| Too many messages | `429` with `retry-after`, on the model path only | "Please wait a minute". An emergency message is never blocked. |
+| A model is rate-limited, down or slow | The router moves the call to the next model or key **in the same request** (up to 8 attempts) and rests the failed one | Nothing. The reply arrives a moment later. |
+| Every model is unavailable, or the stream breaks | The stream ends with the code `model_unavailable` | "The assistant is temporarily unavailable", in Arabic or English |
+| The model calls a tool with bad arguments | Zod rejects the input and the SDK returns it to the model as a tool error | A step marked as not completed. The model corrects itself within the 6-step limit. |
+| The model breaks a rule (forged id, skipped screening, doctors during an emergency) | The guard throws `GuardError`. Its message tells the model what to do next. | The corrected answer, never the invalid one |
+| Unknown city, no doctors, or none in the city | Search returns `unknown_city`, `no_match` or `expanded_to_nearby_cities` | An honest message, with other cities or telemedicine offered |
+| Catalog cannot be read | `/api/providers` returns `503 catalog_unavailable`, and `/api/health` reports `degraded` | A service error, never made-up results |
+| Bad seed data | Zod and referential checks fail `pnpm db:seed`, which `pnpm build` runs | Nothing. The broken build never deploys. |
+| The patient closes the tab | The request's abort signal stops the model call | – |
 
 ---
 
@@ -261,6 +377,32 @@ erDiagram
 | Stateless chat | No patient data at rest, simpler compliance story | No conversation history across devices |
 | assistant-ui + shadcn/ui | Production chat primitives (streaming, tool UI, RTL) with source copied into the repo, so fully customisable | Some library code lives in the repo |
 | Deterministic follow-up chips | Derived from tool results; free and instant | Less varied than model-generated suggestions |
+
+### Why tool calls over SQL and not RAG
+
+RAG fits questions answered by passages of text. "A cardiologist in Riyadh who speaks English, costs under 500 SAR and offers telemedicine" is not that kind of question. It is a filter over structured fields.
+
+- **Exact, not similar.** SQL returns the doctors that match, and only those. Vector search returns the nearest chunks, which can be a cardiologist in the wrong city or a similar-sounding specialty. It also cannot prove absence, so an honest "nobody matches" becomes a guess.
+- **Grounded by construction.** With RAG, the model reads retrieved text and rewrites a doctor's details in its own words. That is how fees and hospitals get mixed up between doctors. Here the tool returns records with ids, the model picks ids, and the card is built from the database row (see [Grounding](#grounding-how-it-avoids-inventing-data)).
+- **Always current.** Availability and fees change. A query reads the current row, while embeddings must be re-indexed.
+- **Cheaper and faster.** No embedding model, vector store or indexing job. A search is one or two indexed queries (the second only for the nearby-city fallback), and the model gets compact rows instead of long passages, which matters on free-tier token limits.
+
+**Where RAG would fit:** unstructured knowledge, such as hospital descriptions, patient reviews, clinical guidelines, or medical-travel FAQs (visas, accommodation). That would be a fifth tool, e.g. `search_knowledge`, returning passages with source ids, and it would follow the same rule: the model may only cite what the tool returned.
+
+### Why SQLite and not PostgreSQL
+
+The catalog is small (11 hospitals, 40 doctors, emergency numbers, fee benchmarks), read-only at runtime, and changes only through reviewed data. For that, a database file shipped with the app is the simplest correct choice:
+
+- **Zero infrastructure.** No database server, connection pool or credentials. A reviewer can clone and run it without Docker, and the Vercel deploy needs nothing extra.
+- **Fast on serverless.** Queries read a local file, so there is no network round trip and no connection setup on cold starts.
+- **Validated data is a build step.** `pnpm build` validates the raw JSON with Zod and referential checks, then writes the file. Bad data fails CI and never reaches production.
+
+**It is ready to move.** All queries go through Drizzle ORM in one module, `src/server/providers/service.ts`.
+
+- **Hosted SQLite (libSQL/Turso):** set `DATABASE_URL`. No code changes.
+- **PostgreSQL:** port the schema from `sqlite-core` to `pg-core` (`json` becomes `jsonb`, booleans become native). The queries stay the same Drizzle calls, and the tools, guard and UI don't change.
+
+**Move to PostgreSQL** once there are runtime writes: bookings, saved conversations (with consent), reviews, many concurrent writers, or needs like PostGIS distance search and full-text search in Arabic.
 
 ---
 
