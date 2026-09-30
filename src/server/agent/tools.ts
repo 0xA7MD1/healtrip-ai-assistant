@@ -1,11 +1,61 @@
 import "server-only";
 import { tool } from "ai";
 import { z } from "zod";
-import { TOOL_NAMES, type RecommendationResult } from "@/lib/agent-contracts";
+import {
+  TOOL_NAMES,
+  type DoctorCard,
+  type DoctorSearchResult,
+  type EmergencyInfo,
+  type RecommendationResult,
+} from "@/lib/agent-contracts";
 import { DoctorSearchSchema, EmergencySearchSchema } from "@/server/providers/schemas";
 import { findEmergencyFacilities, getSpecialty, searchDoctors } from "@/server/providers/service";
 import { assessUrgency, UrgencyInputSchema } from "@/server/triage/assess";
 import { planRecommendation, type TurnState } from "./guard";
+
+/**
+ * What the model reads back from each tool. The UI receives the full bilingual records;
+ * the model only needs enough to choose and explain, which keeps each step small enough
+ * for free-tier token limits.
+ */
+function doctorForModel(d: DoctorCard) {
+  return {
+    id: d.id,
+    name: d.name.en,
+    title: d.title,
+    specialty: d.specialty.code,
+    hospital: d.hospital.name.en,
+    city: d.hospital.city.en,
+    years_experience: d.yearsExperience,
+    languages: d.languages,
+    fee: `${d.fee.amount} ${d.fee.currency}`,
+    second_opinion: d.offersSecondOpinion,
+    telemedicine: d.offersTelemedicine,
+    available_in_days: d.nextAvailableInDays,
+  };
+}
+
+function searchForModel(r: DoctorSearchResult) {
+  return {
+    note: r.note,
+    searched_cities: r.searchedCities.map((c) => c.en),
+    doctors: r.doctors.map(doctorForModel),
+    ...(r.knownCities && { known_cities: r.knownCities.map((c) => c.en) }),
+  };
+}
+
+function emergencyForModel(e: EmergencyInfo) {
+  return {
+    numbers: e.numbers.map((n) => `${n.number} (${n.name.en})`),
+    facilities: e.facilities.map((f) => `${f.name.en}, ${f.city.en}`),
+  };
+}
+
+function recommendationForModel(r: RecommendationResult) {
+  return r.status === "ok"
+    ? { status: r.status, shown_doctor_ids: r.doctors.map((d) => d.id), expanded_to_nearby: r.expandedToNearby }
+    : { status: r.status, specialty: r.specialty.code, searched_cities: r.searchedCities.map((c) => c.en) };
+}
 
 /**
  * The agent's four tools. Each call records what the server learned in `state`, so
@@ -33,6 +83,7 @@ export function createAgentTools(state: TurnState) {
         state.searches.push({ specialty: input.specialty, result });
         return result;
       },
+      toModelOutput: ({ output }) => ({ type: "json", value: searchForModel(output) }),
     }),
 
     [TOOL_NAMES.findEmergencyFacilities]: tool({
@@ -44,6 +95,7 @@ export function createAgentTools(state: TurnState) {
         state.emergencyShown = true;
         return result;
       },
+      toModelOutput: ({ output }) => ({ type: "json", value: emergencyForModel(output) }),
     }),
 
     [TOOL_NAMES.presentRecommendation]: tool({
@@ -74,6 +126,7 @@ export function createAgentTools(state: TurnState) {
           expandedToNearby: note === "expanded_to_nearby_cities",
         };
       },
+      toModelOutput: ({ output }) => ({ type: "json", value: recommendationForModel(output) }),
     }),
   };
 }

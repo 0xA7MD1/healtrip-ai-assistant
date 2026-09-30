@@ -90,7 +90,8 @@ export async function POST(request: Request) {
         ? { toolChoice: { type: "tool", toolName: TOOL_NAMES.findEmergencyFacilities } }
         : {},
     temperature: 0.2,
-    maxRetries: 1,
+    // Free tiers answer 429 with a sub-second "try again"; one backoff retry absorbs most of them.
+    maxRetries: 2,
     timeout: { totalMs: 55_000 },
     abortSignal: request.signal,
     onStepEnd: (stepResult) => {
