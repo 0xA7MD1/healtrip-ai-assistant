@@ -1,0 +1,102 @@
+You are helping me build a small, realistic dataset for a software prototype: an AI assistant that helps patients decide their next step (emergency room, specialist visit, or second opinion) on a Saudi-based digital health platform. Research the web for the REAL parts, invent the SYNTHETIC parts, and return ONE valid JSON document.
+
+SCOPE
+- Saudi Arabia first: 7 real hospitals across Riyadh, Jeddah, and Dammam/Al Khobar (at least 2 per city).
+- International second-opinion partners: 3 real, well-known hospitals that serve international patients — one in the UAE, one in Germany, one in Turkey.
+- Use exactly these 10 specialty codes: cardiology, internal_medicine, family_medicine, pulmonology, gastroenterology, neurology, orthopedics, oncology, pediatrics, dermatology
+- 30 synthetic doctors.
+
+PART A — REAL DATA (research it and cite it)
+1. "hospitals": real, currently operating hospitals. Include only publicly verifiable facts. If you cannot verify a field, use null (or [] for lists). Never guess.
+2. "fee_benchmarks": the typical range of a private-sector, self-pay outpatient specialist consultation fee in SA, AE, DE and TR, in the currency a patient would actually pay.
+3. "emergency_numbers": the official ambulance / unified emergency numbers for SA, AE, DE and TR.
+Every record in Part A must have at least one URL in "source_urls".
+
+PART B — SYNTHETIC DATA (invent it)
+"doctors": fictional doctors placed in the real hospitals from Part A.
+- Invent common, generic names. Never use the name of a real doctor, and never pair a real person with a real hospital.
+- Every doctor has "is_synthetic": true.
+- Each "consultation_fee" must fall inside the fee_benchmarks range for that hospital's country, in the same currency.
+
+COVERAGE (the prototype's test scenarios depend on these)
+- cardiology: at least 8 doctors — at least 2 in each Saudi city and 2 abroad; at least 3 offer second opinions and at least 3 offer telemedicine.
+- Every Saudi city has at least one hospital with a 24/7 emergency department.
+- No dermatologist doctor in Dammam/Al Khobar (to test "not available in your city").
+- Every other specialty has at least 1 doctor.
+- Variety: both genders; language sets ["ar"], ["ar","en"] and ["en"], plus at least one doctor who speaks "de" and one who speaks "tr"; fees from the low to the high end of each range; next_available_in_days from 0 to 30.
+- A hospital's "specialty_codes" lists only departments it really has (verified or clearly plausible). Every doctor's specialty_code must appear in their hospital's specialty_codes.
+
+OUTPUT RULES
+- Reply with ONLY one JSON code block — no text before or after it.
+- Strict JSON: double quotes, no comments, no trailing commas.
+- No citation markers such as [1] inside any string value. URLs go only in "source_urls".
+- "_ar" fields in Arabic script, "_en" fields in English.
+- IDs are lowercase slugs in the formats shown below and must be consistent across the whole document.
+- If your answer gets cut off, I will say "continue": resume exactly where you stopped, without repeating anything.
+
+JSON SHAPE (example values only show the format — replace all of them with real or synthetic data)
+{
+  "meta": {
+    "generated_at": "YYYY-MM-DD",
+    "disclaimer": "Hospitals, fee benchmarks and emergency numbers are researched public data. All doctors are fictional."
+  },
+  "specialties": [
+    { "code": "cardiology", "name_en": "Cardiology", "name_ar": "أمراض القلب" }
+  ],
+  "hospitals": [
+    {
+      "id": "hosp_riyadh_example",
+      "name_en": "string",
+      "name_ar": "string",
+      "country_code": "SA | AE | DE | TR",
+      "city_en": "Riyadh",
+      "city_ar": "الرياض",
+      "ownership": "government | private | university | military | nonprofit",
+      "has_24_7_emergency": true,
+      "accreditations": ["string"],
+      "serves_international_patients": true,
+      "specialty_codes": ["cardiology"],
+      "website": "https://...",
+      "source_urls": ["https://..."]
+    }
+  ],
+  "doctors": [
+    {
+      "id": "doc_001",
+      "is_synthetic": true,
+      "name_en": "Dr. ...",
+      "name_ar": "د. ...",
+      "gender": "male | female",
+      "title": "consultant | specialist",
+      "specialty_code": "cardiology",
+      "hospital_id": "hosp_riyadh_example",
+      "years_experience": 0,
+      "languages": ["ar", "en"],
+      "consultation_fee": 0,
+      "currency": "SAR",
+      "offers_second_opinion": true,
+      "offers_telemedicine": false,
+      "next_available_in_days": 0
+    }
+  ],
+  "fee_benchmarks": [
+    {
+      "country_code": "SA",
+      "currency": "SAR",
+      "min_fee": 0,
+      "max_fee": 0,
+      "notes": "string",
+      "source_urls": ["https://..."]
+    }
+  ],
+  "emergency_numbers": [
+    {
+      "country_code": "SA",
+      "service": "ambulance | unified_emergency",
+      "number": "string",
+      "name_en": "string",
+      "name_ar": "string",
+      "source_urls": ["https://..."]
+    }
+  ]
+}
