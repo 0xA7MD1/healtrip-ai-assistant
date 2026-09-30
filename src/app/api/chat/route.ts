@@ -11,7 +11,7 @@ import { LOCALE_COOKIE, parseLocale } from "@/lib/locale-config";
 import { emergencyStream } from "@/server/agent/emergency";
 import { newTurnState } from "@/server/agent/guard";
 import { ChatBodySchema, sanitizeHistory } from "@/server/agent/messages";
-import { getChatModel } from "@/server/agent/models";
+import { startModelTurn } from "@/server/agent/models";
 import { buildInstructions } from "@/server/agent/prompt";
 import { createAgentTools } from "@/server/agent/tools";
 import { errorResponse, logEvent, newRequestId } from "@/server/http";
@@ -82,9 +82,10 @@ export async function POST(request: Request) {
   }
 
   const state = newTurnState();
+  const models = startModelTurn(requestId);
   let step = 0;
   const result = streamText({
-    model: getChatModel(),
+    model: models.model,
     instructions: buildInstructions({ language, conversationSignals: gate }),
     messages: await convertToModelMessages(history.messages),
     tools: createAgentTools(state),
@@ -95,8 +96,8 @@ export async function POST(request: Request) {
         ? { toolChoice: { type: "tool", toolName: TOOL_NAMES.findEmergencyFacilities } }
         : {},
     temperature: 0.2,
-    // Free tiers answer 429 with a sub-second "try again"; one backoff retry absorbs most of them.
-    maxRetries: 2,
+    // The router moves a failed call to the next model at once; retrying the same one only adds waiting.
+    maxRetries: 0,
     timeout: { totalMs: 55_000 },
     abortSignal: request.signal,
     onStepEnd: (stepResult) => {
@@ -106,7 +107,9 @@ export async function POST(request: Request) {
         step,
         finishReason: stepResult.finishReason,
         tools: stepResult.toolCalls.map((c) => c.toolName),
-        model: stepResult.response.modelId,
+        model: models.active(),
+        inputTokens: stepResult.usage.inputTokens,
+        outputTokens: stepResult.usage.outputTokens,
       });
     },
     onError: ({ error }) => {
