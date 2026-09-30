@@ -1,5 +1,11 @@
 import "server-only";
 import { and, asc, desc, eq, inArray, lte, sql, type SQL } from "drizzle-orm";
+import type {
+  CityRef,
+  DoctorCard,
+  DoctorSearchResult,
+  EmergencyInfo,
+} from "@/lib/agent-contracts";
 import { NEARBY_CITIES, normalizeArabic, toCityCode, type CountryCode } from "@/lib/catalog";
 import { db } from "@/server/db/client";
 import { doctors, emergencyNumbers, hospitals, specialties } from "@/server/db/schema";
@@ -13,45 +19,8 @@ import {
 /**
  * The only way the app reads provider data. The REST API and the agent's tools are thin
  * adapters over these functions. Every value shown to a patient comes from here.
+ * The shapes returned are defined in `@/lib/agent-contracts`, shared with the UI.
  */
-
-export interface CityRef {
-  code: string;
-  en: string;
-  ar: string;
-  countryCode: string;
-}
-
-export interface DoctorCard {
-  id: string;
-  isSynthetic: boolean;
-  name: { en: string; ar: string };
-  gender: "male" | "female";
-  title: "consultant" | "specialist";
-  specialty: { code: string; en: string; ar: string };
-  hospital: {
-    id: string;
-    name: { en: string; ar: string };
-    city: CityRef;
-    hasEmergency24x7: boolean | null;
-    accreditations: string[];
-  };
-  yearsExperience: number;
-  languages: string[];
-  fee: { amount: number; currency: string };
-  offersSecondOpinion: boolean;
-  offersTelemedicine: boolean;
-  nextAvailableInDays: number;
-}
-
-export interface DoctorSearchResult {
-  doctors: DoctorCard[];
-  /** Cities actually searched (the requested one, plus nearby ones if it had no match). */
-  searchedCities: CityRef[];
-  note: "ok" | "expanded_to_nearby_cities" | "no_match" | "unknown_city";
-  /** Only set when the city was not recognised, so the caller can ask the patient. */
-  knownCities?: CityRef[];
-}
 
 let cityCache: CityRef[] | undefined;
 
@@ -194,19 +163,6 @@ export async function getDoctorsByIds(ids: string[]): Promise<DoctorCard[]> {
   const cards = await queryDoctors([inArray(doctors.id, ids)], ids.length);
   // Preserve the order the caller asked for.
   return ids.flatMap((id) => cards.find((c) => c.id === id) ?? []);
-}
-
-export interface EmergencyFacility {
-  id: string;
-  name: { en: string; ar: string };
-  city: CityRef;
-  website: string | null;
-}
-
-export interface EmergencyInfo {
-  country: CountryCode;
-  numbers: { number: string; service: string; name: { en: string; ar: string } }[];
-  facilities: EmergencyFacility[];
 }
 
 export async function findEmergencyFacilities(input: EmergencySearchInput): Promise<EmergencyInfo> {
