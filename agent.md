@@ -20,15 +20,15 @@
 ## الحالة: المنتج كامل على `dev` (ما انرفع)
 
 - **الـbackend:**
-  - `POST /api/chat`: rate limit ← validation ← تنظيف الـhistory (النص بس) ← بوابة طوارئ قبل الـLLM ← agent (أقصاها 6 خطوات)
+  - `POST /api/chat`: validation ← تنظيف الـhistory (النص بس) ← بوابة طوارئ على آخر 3 رسائل للمريض (رد الطوارئ ما عليه rate limit) ← rate limit ← agent (أقصاها 6 خطوات، والـreasoning الخام ما يوصل للمريض)
   - `src/server/agent/`: الموديلات (Gemini، ويتحوّل لـGroq تلقائياً)، والـprompt، والـtools الأربعة، والـguard، ورد الطوارئ الثابت
 - **الواجهة:**
   - assistant-ui وshadcn، عربي/إنجليزي، والـRTL يتحفظ في cookie
   - الترحيب وفيه 4 كروت، وكروت الأطباء، وبانر الطوارئ، وخطوات التحليل، والتفكير، وfollow-up chips (بدون LLM)
   - رسائل الأخطاء مترجمة
 - **الاختبارات:**
-  - `pnpm test`: 55 unit test
-  - `pnpm eval`: 11/11 end-to-end مع الموديل الحقيقي (يحتاج `pnpm dev` شغّال)
+  - `pnpm test`: 59 unit test
+  - `pnpm eval`: 12 حالة end-to-end مع الموديل الحقيقي (يحتاج `pnpm dev` شغّال). آخر تشغيل كامل 11/11، قبل ما تنضاف `emergency-after-question`، وهي تنجح بدون موديل
 - **`README.md`:** فيه Mermaid للـarchitecture والـsequence والـERD، والأمان، والـevals، والقرارات، والربط مع HealTrip+
 - **الـbuild وlint (على `src`) وtypecheck:** كلها نظيفة
 
