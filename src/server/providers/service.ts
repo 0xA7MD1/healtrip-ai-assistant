@@ -5,8 +5,15 @@ import type {
   DoctorCard,
   DoctorSearchResult,
   EmergencyInfo,
+  SpecialtyRef,
 } from "@/lib/agent-contracts";
-import { NEARBY_CITIES, normalizeArabic, toCityCode, type CountryCode } from "@/lib/catalog";
+import {
+  NEARBY_CITIES,
+  normalizeArabic,
+  toCityCode,
+  type CountryCode,
+  type SpecialtyCode,
+} from "@/lib/catalog";
 import { db } from "@/server/db/client";
 import { doctors, emergencyNumbers, hospitals, specialties } from "@/server/db/schema";
 import {
@@ -199,6 +206,22 @@ export async function findEmergencyFacilities(input: EmergencySearchInput): Prom
       website: h.website,
     })),
   };
+}
+
+export async function getSpecialty(code: SpecialtyCode): Promise<SpecialtyRef> {
+  const [row] = await db.select().from(specialties).where(eq(specialties.code, code));
+  return row ? { code: row.code, en: row.nameEn, ar: row.nameAr } : { code, en: code, ar: code };
+}
+
+/** First catalog city named in free text ("... in Riyadh", "بالرياض"), if any. */
+export async function findCityMention(text: string): Promise<CityRef | undefined> {
+  const haystack = normalizeArabic(text.toLowerCase());
+  const cities = await listCities();
+  return cities.find((c) => {
+    const en = c.en.toLowerCase();
+    const names = [en, en.replace(/^al[- ]/, ""), normalizeArabic(c.ar)];
+    return names.some((name) => name.length >= 3 && haystack.includes(name));
+  });
 }
 
 export async function countDoctors(): Promise<number> {
