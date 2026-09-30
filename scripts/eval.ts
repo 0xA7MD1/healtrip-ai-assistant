@@ -93,6 +93,16 @@ const CASES: EvalCase[] = [
     check: expectEmergency,
   },
   {
+    id: "emergency-after-question",
+    description: "Red flags confirmed in answer to the screening question still skip the model",
+    conversation: [
+      { role: "user", text: "I've had chest pain since this morning." },
+      { role: "assistant", text: "Do you have shortness of breath, sweating, pain spreading to your arm or jaw, or fainting?" },
+      { role: "user", text: "Yes, I'm sweating and it spreads to my left arm." },
+    ],
+    check: expectEmergency,
+  },
+  {
     id: "screening-first",
     description: "Mild chest pain: red-flag questions before any doctor",
     conversation: [{ role: "user", text: "I've had mild chest pain for two days. I'm 40 and live in Riyadh." }],

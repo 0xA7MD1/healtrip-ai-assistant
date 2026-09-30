@@ -62,13 +62,15 @@ export async function POST(request: Request) {
   }
 
   const language = detectLanguage(history.lastUserText);
-  const gate = screenMessage(history.lastUserText);
+  // The last three patient messages, not just the last one: red flags usually arrive as the
+  // answer to a clarifying question ("chest pain", then "yes, I'm sweating").
+  const gate = screenMessage(history.recentUserText);
   logEvent("chat_request", { requestId, messages: history.messages.length, language, gate: gate.level });
 
   if (gate.level === "emergency") {
     logEvent("chat_emergency_gate", { requestId, reason: gate.reason, signals: gate.signals });
     return createUIMessageStreamResponse({
-      stream: emergencyStream({ text: history.lastUserText, language, requestId }),
+      stream: emergencyStream({ text: history.recentUserText, language, requestId }),
       headers: { "x-request-id": requestId },
     });
   }
@@ -77,10 +79,7 @@ export async function POST(request: Request) {
   let step = 0;
   const result = streamText({
     model: getChatModel(),
-    instructions: buildInstructions({
-      language,
-      conversationSignals: screenMessage(history.recentUserText),
-    }),
+    instructions: buildInstructions({ language, conversationSignals: gate }),
     messages: await convertToModelMessages(history.messages),
     tools: createAgentTools(state),
     stopWhen: isStepCount(6),

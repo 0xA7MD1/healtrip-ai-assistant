@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { screenMessage } from "@/server/triage/signals";
 import { ChatBodySchema, detectLanguage, LIMITS, sanitizeHistory, type ChatBody } from "./messages";
 
 const user = (text: string, id = "u") => ({ id, role: "user" as const, parts: [{ type: "text", text }] });
@@ -59,6 +60,20 @@ describe("sanitizeHistory", () => {
   it("joins the last three patient messages for the safety screen", () => {
     const result = sanitizeHistory(body([user("a", "1"), user("b", "2"), user("c", "3"), user("d", "4")]));
     expect(result.ok && result.recentUserText).toBe("b. c. d");
+  });
+
+  it("lets the safety screen see red flags confirmed in answer to a clarifying question", () => {
+    const result = sanitizeHistory(
+      body([
+        user("I have chest pain since this morning", "1"),
+        { id: "2", role: "assistant", parts: [{ type: "text", text: "Any sweating, or pain spreading to your arm?" }] },
+        user("Yes, I'm sweating and it spreads to my left arm", "3"),
+      ]),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(screenMessage(result.lastUserText).level).toBe("none");
+    expect(screenMessage(result.recentUserText).level).toBe("emergency");
   });
 });
 
