@@ -48,7 +48,7 @@ flowchart LR
     UI["Chat UI<br/>assistant-ui + shadcn/ui<br/>AR/EN, RTL"]
   end
 
-  subgraph "Next.js server (Vercel function)"
+  subgraph server["Next.js server (Vercel function)"]
     RL[Rate limiter<br/>per IP]
     VAL[Validate + sanitise<br/>history: text only]
     GATE{{Pre-LLM<br/>emergency gate}}
@@ -133,8 +133,8 @@ sequenceDiagram
 ```mermaid
 erDiagram
   specialties ||--o{ doctors : "specialty_code"
-  specialties ||--o{ hospital_specialties : ""
-  hospitals ||--o{ hospital_specialties : ""
+  specialties ||--o{ hospital_specialties : "offered at"
+  hospitals ||--o{ hospital_specialties : "offers"
   hospitals ||--o{ doctors : "hospital_id"
 
   specialties {
