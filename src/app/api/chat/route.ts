@@ -111,6 +111,9 @@ export async function POST(request: Request) {
   return createUIMessageStreamResponse({
     stream: toUIMessageStream({
       stream: result.stream,
+      // Raw model reasoning is not bound by the prompt's rules and can speculate about a
+      // diagnosis. The patient sees the tool steps instead.
+      sendReasoning: false,
       // The UI maps this code to a localized message; details stay in the server log.
       onError: () => "model_unavailable",
     }),
