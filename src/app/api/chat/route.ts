@@ -19,9 +19,9 @@ import { screenMessage } from "@/server/triage/signals";
 /**
  * POST /api/chat — one patient turn.
  *
- *   rate limit → validate → sanitise history → pre-LLM emergency gate
- *     ├─ emergency: fixed reply + emergency numbers, no model call
- *     └─ otherwise: agent loop (assess → search → present) with the recommendation guard
+ *   validate → sanitise history → pre-LLM emergency gate
+ *     ├─ emergency: fixed reply + emergency numbers, no model call, never rate-limited
+ *     └─ otherwise: rate limit → agent loop (assess → search → present) with the recommendation guard
  *
  * Stateless: nothing is stored. Logs carry ids, counts and tool names, never message text.
  */
@@ -33,14 +33,6 @@ const limiter = createRateLimiter({ limit: 12, windowMs: 60_000 });
 
 export async function POST(request: Request) {
   const requestId = newRequestId();
-
-  const rate = limiter(clientKey(request.headers));
-  if (!rate.allowed) {
-    logEvent("chat_rate_limited", { requestId });
-    const response = errorResponse(429, "rate_limited", "Too many messages. Please wait a moment.", requestId);
-    response.headers.set("retry-after", String(rate.retryAfterSeconds));
-    return response;
-  }
 
   if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) {
     return errorResponse(413, "payload_too_large", "The conversation is too long.", requestId);
@@ -73,6 +65,16 @@ export async function POST(request: Request) {
       stream: emergencyStream({ text: history.recentUserText, language, requestId }),
       headers: { "x-request-id": requestId },
     });
+  }
+
+  // Only the model path is limited: it spends the LLM quota, while the emergency reply costs one
+  // catalog read and must reach a patient who keeps sending messages.
+  const rate = limiter(clientKey(request.headers));
+  if (!rate.allowed) {
+    logEvent("chat_rate_limited", { requestId });
+    const response = errorResponse(429, "rate_limited", "Too many messages. Please wait a moment.", requestId);
+    response.headers.set("retry-after", String(rate.retryAfterSeconds));
+    return response;
   }
 
   const state = newTurnState();
