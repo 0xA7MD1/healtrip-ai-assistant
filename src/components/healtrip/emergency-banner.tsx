@@ -32,8 +32,8 @@ export function EmergencyBanner({ info }: { info: EmergencyInfo }) {
               variant={i === 0 ? "destructive" : "outline"}
               className={
                 i === 0
-                  ? "h-11 rounded-full bg-red-600 px-5 text-base font-bold text-white shadow-md shadow-red-600/20 hover:bg-red-700"
-                  : "h-11 rounded-full border-red-200 bg-white px-4 text-red-700 hover:bg-red-100 dark:bg-transparent"
+                  ? "h-auto min-h-11 max-w-full flex-wrap justify-start rounded-full bg-red-600 px-5 py-2 text-base font-bold whitespace-normal text-white no-underline! shadow-md shadow-red-600/20 hover:bg-red-700"
+                  : "h-auto min-h-11 max-w-full flex-wrap justify-start rounded-full border-red-200 bg-white px-4 py-2 whitespace-normal text-red-700 no-underline! hover:bg-red-100 dark:bg-transparent"
               }
             >
               <PhoneIcon data-icon="inline-start" />
