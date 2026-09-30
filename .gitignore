@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# the env template is safe to commit
+!.env.example
+
 # vercel
 .vercel
 
@@ -40,9 +43,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# the env template is safe to commit
-!.env.example
-
 # generated catalog (built by `pnpm db:seed`, also during `pnpm build`)
 /data/healtrip.db
 /data/healtrip.db-*
+
+# local coding-agent files (instructions, handover notes, settings)
+/AGENTS.md
+/CLAUDE.md
+/agent.md
+.claude/
+.codex/
