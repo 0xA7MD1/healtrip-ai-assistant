@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# the env template is safe to commit
+!.env.example
+
+# generated catalog (built by `pnpm db:seed`, also during `pnpm build`)
+/data/healtrip.db
+/data/healtrip.db-*
