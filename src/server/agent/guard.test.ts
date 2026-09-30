@@ -28,6 +28,13 @@ describe("planRecommendation", () => {
     expect(() => planRecommendation(state, [first])).toThrow(/find_emergency_facilities/);
   });
 
+  it("stays an emergency after the numbers were shown, even if a re-assessment is milder", () => {
+    // assess_urgency → emergency, find_emergency_facilities, then assess_urgency again without the red flags.
+    const state = stateWith({ emergencyShown: true });
+    expect(state.assessment?.urgency).toBe("routine");
+    expect(() => planRecommendation(state, [first])).toThrow(/emergency services/);
+  });
+
   it("refuses until red flags are screened", () => {
     const state = stateWith({ assessment: assessment("needs_screening", "ask_red_flag_questions") });
     expect(() => planRecommendation(state, [first])).toThrow(/red-flag/);

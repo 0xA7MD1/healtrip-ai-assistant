@@ -51,6 +51,12 @@ export type RecommendationPlan =
   | { status: "no_match"; urgency: RoutineUrgency; nextStep: RoutineStep; search: SearchRecord };
 
 export function planRecommendation(state: TurnState, requestedIds: readonly string[]): RecommendationPlan {
+  // Once this turn has shown emergency numbers, a later, milder re-assessment cannot unlock doctors.
+  if (state.emergencyShown) {
+    throw new GuardError(
+      "Emergency numbers were shown in this turn. Tell the patient to call emergency services now. Do not recommend doctors.",
+    );
+  }
   const assessment = state.assessment;
   if (!assessment) {
     throw new GuardError("Call assess_urgency in this turn before presenting a recommendation.");
