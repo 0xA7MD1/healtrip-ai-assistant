@@ -48,14 +48,15 @@ const FollowupSuggestionsRow: FC = () => {
       className="aui-thread-followup-suggestions -my-1 w-full [scrollbar-width:none] overflow-x-auto py-1 [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       style={{ maskImage, WebkitMaskImage: maskImage }}
     >
-      <div className="mx-auto flex min-h-8 w-max items-center gap-2 px-0.5">
+      <div className="flex min-h-8 w-max items-center gap-2 px-0.5">
         {suggestions.map((suggestion, idx) => (
           <ThreadPrimitive.Suggestion
             key={idx}
-            className="aui-thread-followup-suggestion border-foreground/10 hover:bg-foreground/[0.03] hover:border-foreground/25 rounded-md border px-2.5 py-1 text-sm whitespace-nowrap transition-colors ease-in motion-reduce:transition-none"
+            className="aui-thread-followup-suggestion group bg-card text-muted-foreground hover:border-primary/40 hover:bg-accent hover:text-primary flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[13px] font-medium whitespace-nowrap transition-colors ease-in motion-reduce:transition-none"
             prompt={suggestion.prompt}
             send
           >
+            <span aria-hidden className="text-muted-foreground/70 group-hover:text-primary">+</span>
             {suggestion.title ?? suggestion.prompt}
             {suggestion.label && (
               <span className="aui-thread-followup-suggestion-label text-muted-foreground ms-1">

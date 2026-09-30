@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, IBM_Plex_Sans_Arabic } from "next/font/google";
 import { cookies } from "next/headers";
-import { LOCALE_COOKIE, LocaleProvider } from "@/components/healtrip/locale-provider";
+import { LocaleProvider } from "@/components/healtrip/locale-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { DEFAULT_LOCALE, dirFor, type Locale } from "@/lib/locale";
+import { dirFor, LOCALE_COOKIE, parseLocale } from "@/lib/locale-config";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-latin", subsets: ["latin"] });
@@ -22,8 +22,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const saved = (await cookies()).get(LOCALE_COOKIE)?.value;
-  const locale: Locale = saved === "en" || saved === "ar" ? saved : DEFAULT_LOCALE;
+  const locale = parseLocale((await cookies()).get(LOCALE_COOKIE)?.value);
 
   return (
     <html

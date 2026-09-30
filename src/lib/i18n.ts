@@ -14,7 +14,7 @@ const ar = {
   newChat: "محادثة جديدة",
 
   welcomeTitle: "كيف أقدر أساعدك اليوم؟",
-  welcomeSubtitle: "اوصف حالتك، وأساعدك تعرف خطوتك الجاية وأرشّح لك أطباء من كتالوج HealTrip+.",
+  welcomeSubtitle: "اوصف حالتك، وأساعدك تعرف خطوتك الجاية وأرشّح لك أطباء من كتالوج HealTrip+ الموثّق.",
   quickPrompts: [
     { icon: "heart", title: "عندي ألم في الصدر", prompt: "عندي ألم في الصدر" },
     { icon: "stethoscope", title: "أبي طبيب قلب في الرياض", prompt: "أبي طبيب قلب في الرياض" },

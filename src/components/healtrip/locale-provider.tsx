@@ -2,9 +2,8 @@
 
 import { DirectionProvider } from "@base-ui/react/direction-provider";
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
-import { dirFor, LocaleContext, type Locale } from "@/lib/locale";
-
-export const LOCALE_COOKIE = "locale";
+import { LocaleContext } from "@/lib/locale";
+import { dirFor, LOCALE_COOKIE, type Locale } from "@/lib/locale-config";
 
 const SetLocaleContext = createContext<(locale: Locale) => void>(() => {});
 
