@@ -21,6 +21,7 @@ import { TooltipIconButton } from "@/components/tooltip-icon-button";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/lib/i18n";
+import { dirFor, useLocale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
 import {
   ActionBarMorePrimitive,
@@ -417,6 +418,11 @@ const Disclaimer: FC = () => {
 
 const Composer: FC<{ autoFocus: boolean }> = ({ autoFocus }) => {
   const t = useT();
+  const locale = useLocale();
+  // The input follows the UI locale (not dir="auto"): with an empty value,
+  // dir="auto" falls back to LTR, which pins the Arabic placeholder to the
+  // left. Sent messages already use dir="auto", so typed English still shows
+  // correctly in the bubble.
   return (
     <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col">
       <div
@@ -425,11 +431,12 @@ const Composer: FC<{ autoFocus: boolean }> = ({ autoFocus }) => {
       >
         <ComposerPrimitive.Input
           placeholder={t.composerPlaceholder}
-          className="aui-composer-input caret-primary placeholder:text-muted-foreground/70 max-h-48 min-h-10 w-full resize-none bg-transparent px-2.5 py-2 text-base leading-6 outline-none"
+          className="aui-composer-input caret-primary placeholder:text-muted-foreground/70 max-h-48 min-h-10 w-full resize-none bg-transparent px-2.5 py-2 text-base leading-6 text-start outline-none"
           rows={1}
           autoFocus={autoFocus}
           enterKeyHint="send"
           aria-label={t.composerLabel}
+          dir={dirFor(locale)}
         />
         <ComposerAction />
       </div>
@@ -565,7 +572,14 @@ const AssistantMessage: FC = () => {
                 );
               }
               case "text":
-                return <MarkdownText />;
+                // dir="auto" aligns each message by its own content language
+                // (like ChatGPT/Claude/WhatsApp), while the bubble position
+                // still mirrors with the UI locale via logical classes.
+                return (
+                  <div dir="auto" className="text-start">
+                    <MarkdownText />
+                  </div>
+                );
               case "reasoning":
                 return <Reasoning {...part} />;
               case "tool-call":
@@ -667,7 +681,10 @@ const UserMessage: FC = () => {
       data-role="user"
     >
       <div className="aui-user-message-content-wrapper relative col-start-2 min-w-0">
-        <div className="aui-user-message-content peer bg-primary text-primary-foreground rounded-(--composer-radius) rounded-se-md px-4 py-2.5 wrap-break-word empty:hidden">
+        <div
+          dir="auto"
+          className="aui-user-message-content peer bg-primary text-primary-foreground rounded-(--composer-radius) rounded-se-md px-4 py-2.5 text-start wrap-break-word empty:hidden"
+        >
           <MessagePrimitive.Parts
             components={{ File: UserFilePart, Image: UserImagePart }}
           />

@@ -14,8 +14,14 @@ export function ChatHeader() {
   const setLocale = useSetLocale();
   const aui = useAui();
 
+  // dir="ltr" + justify-start pins the actions to the physical left corner in both
+  // languages. Without the isolation, justify-end would flip sides when dir changes
+  // (right in English, left in Arabic).
   return (
-    <header className="flex h-14 shrink-0 items-center justify-end gap-2 px-4">
+    <header
+      dir="ltr"
+      className="flex h-14 shrink-0 items-center justify-start gap-2 px-4"
+    >
       <AuiIf condition={(s) => !s.thread.isEmpty}>
         <Button variant="ghost" size="sm" onClick={() => aui.thread().reset()}>
           <SquarePenIcon data-icon="inline-start" />

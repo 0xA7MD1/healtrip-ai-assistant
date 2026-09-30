@@ -76,7 +76,7 @@ export function createAgentTools(state: TurnState) {
 
     [TOOL_NAMES.searchProviders]: tool({
       description:
-        "Search the verified HealTrip+ catalog for doctors. Use the specialty from assess_urgency unless the patient asked for a different one. Pass the city exactly as the patient wrote it. These results are the only doctors you may ever mention.",
+        "Search the verified doctor network for doctors. Use the specialty from assess_urgency unless the patient asked for a different one. Pass the city exactly as the patient wrote it. These results are the only doctors you may ever mention.",
       inputSchema: DoctorSearchSchema,
       execute: async (input) => {
         const result = await searchDoctors(input);

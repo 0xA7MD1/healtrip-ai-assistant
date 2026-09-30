@@ -5,7 +5,7 @@
 
 export type Locale = "ar" | "en";
 
-/** Arabic is the default: HealTrip+ is a Saudi product. English is one toggle away. */
+/** Arabic is the default. English is one toggle away. */
 export const DEFAULT_LOCALE: Locale = "ar";
 
 export const LOCALE_COOKIE = "locale";

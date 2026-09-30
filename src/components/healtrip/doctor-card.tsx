@@ -1,13 +1,14 @@
 "use client";
 
-import { BadgeCheckIcon, Building2Icon, CalendarClockIcon, LanguagesIcon, MapPinIcon, SirenIcon, VideoIcon } from "lucide-react";
+import { AwardIcon, BadgeCheckIcon, LanguagesIcon, MapPinIcon, SirenIcon, VideoIcon } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { DoctorCard as Doctor } from "@/lib/agent-contracts";
 import { intlLocale, useT } from "@/lib/i18n";
 import { localized, useLocale } from "@/lib/locale";
+import { cn } from "@/lib/utils";
 
 function initials(name: string): string {
   return name
@@ -17,6 +18,22 @@ function initials(name: string): string {
     .slice(0, 2)
     .map((part) => part.replace(/^(Al-|ال)/, "")[0])
     .join("");
+}
+
+/** Stable avatar color per doctor, like the design mockup (teal / indigo / rose). */
+const AVATAR_COLORS = [
+  "bg-teal-600",
+  "bg-indigo-500",
+  "bg-rose-500",
+  "bg-emerald-600",
+  "bg-sky-600",
+  "bg-violet-500",
+];
+
+function avatarColor(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
 export function DoctorCard({ doctor }: { doctor: Doctor }) {
@@ -30,7 +47,7 @@ export function DoctorCard({ doctor }: { doctor: Doctor }) {
     maximumFractionDigits: 0,
   }).format(doctor.fee.amount);
   const languageNames = new Intl.DisplayNames([locale], { type: "language" });
-  const languages = doctor.languages.map((code) => languageNames.of(code) ?? code).join("، ");
+  const languages = doctor.languages.map((code) => languageNames.of(code) ?? code).join(locale === "ar" ? "، " : ", ");
   const availability =
     doctor.nextAvailableInDays === 0
       ? t.availableToday
@@ -39,40 +56,70 @@ export function DoctorCard({ doctor }: { doctor: Doctor }) {
         : t.availableIn(doctor.nextAvailableInDays);
 
   return (
-    <Card size="sm" className="h-full gap-3 transition-shadow hover:shadow-md">
-      <CardHeader className="flex items-start gap-3">
-        <Avatar size="lg" className="rounded-xl after:rounded-xl">
-          <AvatarFallback className="bg-primary/10 text-primary rounded-xl font-semibold">
+    <Card
+      size="sm"
+      className="h-full gap-0 rounded-2xl p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+    >
+      <CardHeader className="flex-row items-start gap-4 p-0">
+        <Avatar size="lg" className="size-14 shrink-0 rounded-2xl after:rounded-2xl">
+          <AvatarFallback
+            className={cn("rounded-2xl text-xl font-bold text-white shadow-sm", avatarColor(doctor.id))}
+          >
             {initials(name)}
           </AvatarFallback>
         </Avatar>
-        <div className="min-w-0 flex-1">
-          <p className="text-foreground truncate text-[15px] leading-tight font-semibold">{name}</p>
-          <p className="text-primary mt-1 flex items-center gap-1 text-xs font-medium">
-            {doctor.title === "consultant" ? t.consultant : t.specialist} · {localized(doctor.specialty, locale)}
-            <BadgeCheckIcon className="size-3.5 shrink-0" aria-hidden />
+        <div className="min-w-0 flex-1 text-start">
+          <p className="text-foreground truncate text-base leading-snug font-bold">{name}</p>
+          <p className="text-primary mt-1 flex items-center gap-1.5 text-sm font-medium">
+            <span className="truncate">
+              {doctor.title === "consultant" ? t.consultant : t.specialist} ·{" "}
+              {localized(doctor.specialty, locale)}
+            </span>
+            <BadgeCheckIcon className="size-4 shrink-0" aria-hidden />
           </p>
-          <p className="text-muted-foreground mt-1 text-xs">{t.yearsExperience(doctor.yearsExperience)}</p>
+          <p className="text-muted-foreground mt-1 flex items-center gap-1.5 text-[13px]">
+            <span className="truncate">{localized(doctor.hospital.name, locale)}</span>
+            <BadgeCheckIcon className="size-4 shrink-0 opacity-60" aria-hidden />
+          </p>
         </div>
       </CardHeader>
 
-      <CardContent className="text-muted-foreground flex flex-col gap-1.5 text-xs">
-        <p className="flex items-center gap-1.5">
-          <Building2Icon className="size-3.5 shrink-0" aria-hidden />
-          <span className="text-foreground truncate">{localized(doctor.hospital.name, locale)}</span>
-        </p>
-        <p className="flex items-center gap-1.5">
-          <MapPinIcon className="size-3.5 shrink-0" aria-hidden />
-          {localized(doctor.hospital.city, locale)}
-          {doctor.hospital.accreditations.length > 0 && (
-            <span className="truncate">· {doctor.hospital.accreditations.join(", ")}</span>
-          )}
-        </p>
-        <p className="flex items-center gap-1.5">
-          <LanguagesIcon className="size-3.5 shrink-0" aria-hidden />
-          {t.speaks}: {languages}
-        </p>
-        <div className="mt-1 flex flex-wrap gap-1.5">
+      <CardContent className="mt-4 flex flex-col gap-3 p-0">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+            <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
+            {availability}
+          </span>
+          <span className="flex-1" aria-hidden />
+          <span className="text-muted-foreground text-sm tabular-nums">
+            {t.consultationFee}{" "}
+            <span className="text-foreground font-bold">{fee}</span>
+          </span>
+        </div>
+
+        <div className="text-muted-foreground flex flex-col gap-2 text-[13px] leading-relaxed">
+          <p className="flex items-center gap-2">
+            <MapPinIcon className="size-4 shrink-0" aria-hidden />
+            <span className="truncate">
+              {localized(doctor.hospital.city, locale)}
+              {doctor.hospital.accreditations.length > 0 && (
+                <> · {doctor.hospital.accreditations.join(", ")}</>
+              )}
+            </span>
+          </p>
+          <p className="flex items-center gap-2">
+            <AwardIcon className="size-4 shrink-0" aria-hidden />
+            {t.yearsExperience(doctor.yearsExperience)}
+          </p>
+          <p className="flex items-center gap-2">
+            <LanguagesIcon className="size-4 shrink-0" aria-hidden />
+            <span className="truncate">
+              {t.speaks}: {languages}
+            </span>
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
           {doctor.offersSecondOpinion && <Badge variant="secondary">{t.secondOpinion}</Badge>}
           {doctor.offersTelemedicine && (
             <Badge variant="secondary">
@@ -96,16 +143,6 @@ export function DoctorCard({ doctor }: { doctor: Doctor }) {
           )}
         </div>
       </CardContent>
-
-      <CardFooter className="mt-auto flex items-center justify-between gap-2 border-t pt-3 pb-3 text-xs">
-        <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
-          <CalendarClockIcon className="size-3.5" aria-hidden />
-          {availability}
-        </span>
-        <span className="text-muted-foreground">
-          {t.consultationFee} <span className="text-foreground font-semibold tabular-nums">{fee}</span>
-        </span>
-      </CardFooter>
     </Card>
   );
 }

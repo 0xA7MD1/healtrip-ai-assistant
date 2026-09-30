@@ -14,7 +14,7 @@ const ar = {
   newChat: "محادثة جديدة",
 
   welcomeTitle: "كيف أقدر أساعدك اليوم؟",
-  welcomeSubtitle: "اوصف حالتك، وأساعدك تعرف خطوتك الجاية وأرشّح لك أطباء من كتالوج HealTrip+ الموثّق.",
+  welcomeSubtitle: "اوصف حالتك، وأساعدك تعرف خطوتك الجاية وأرشّح لك أطباء موثّقين.",
   quickPrompts: [
     { icon: "heart", title: "عندي ألم في الصدر", prompt: "عندي ألم في الصدر" },
     { icon: "stethoscope", title: "أبي طبيب قلب في الرياض", prompt: "أبي طبيب قلب في الرياض" },
@@ -53,7 +53,7 @@ const ar = {
   searching: "أبحث عن أطباء…",
   searched: (specialty: string, cities: string, n: number) =>
     `بحثت عن ${specialty}${cities ? ` في ${cities}` : ""}: ${n === 0 ? "لا نتائج" : n === 1 ? "نتيجة واحدة" : `${n} نتائج`}`,
-  unknownCity: "المدينة غير موجودة في الكتالوج",
+  unknownCity: "المدينة غير مدعومة حالياً",
   preparing: "أجهّز التوصية…",
   findingEmergency: "أجيب أرقام الطوارئ…",
 
@@ -72,7 +72,7 @@ const ar = {
   } satisfies Record<NextStep, string>,
 
   recommendedDoctors: (specialty: string) => `أطباء ${specialty} المقترحون`,
-  fromCatalog: "من كتالوج HealTrip+ الموثّق",
+  fromCatalog: "أطباء موثّقون",
   expandedNote: (city: string, nearby: string) => `ما لقينا نتيجة في ${city}، فعرضنا لك أطباء في ${nearby}.`,
   noMatchTitle: (specialty: string, cities: string) => `ما فيه أطباء ${specialty} في ${cities} حالياً`,
   noMatchDescription: "جرّب استشارة عن بعد، أو ابحث في مدينة قريبة.",
@@ -115,7 +115,7 @@ const en: Dictionary = {
   newChat: "New chat",
 
   welcomeTitle: "How can I help you today?",
-  welcomeSubtitle: "Describe your situation. I'll help you decide your next step and suggest doctors from the HealTrip+ catalog.",
+  welcomeSubtitle: "Describe your situation. I'll help you decide your next step and suggest verified doctors.",
   quickPrompts: [
     { icon: "heart", title: "I have chest pain", prompt: "I have chest pain" },
     { icon: "stethoscope", title: "Find a cardiologist in Riyadh", prompt: "I need a cardiologist in Riyadh" },
@@ -154,7 +154,7 @@ const en: Dictionary = {
   searching: "Searching for doctors…",
   searched: (specialty, cities, n) =>
     `Searched ${specialty}${cities ? ` in ${cities}` : ""}: ${n === 0 ? "no results" : n === 1 ? "1 result" : `${n} results`}`,
-  unknownCity: "City not found in the catalog",
+  unknownCity: "City not supported right now",
   preparing: "Preparing the recommendation…",
   findingEmergency: "Getting emergency numbers…",
 
@@ -173,7 +173,7 @@ const en: Dictionary = {
   },
 
   recommendedDoctors: (specialty) => `Recommended ${specialty} doctors`,
-  fromCatalog: "From the verified HealTrip+ catalog",
+  fromCatalog: "Verified doctors",
   expandedNote: (city, nearby) => `No match in ${city}, so these doctors are in ${nearby}.`,
   noMatchTitle: (specialty, cities) => `No ${specialty} doctors in ${cities} right now`,
   noMatchDescription: "Try a telemedicine consultation or search a nearby city.",

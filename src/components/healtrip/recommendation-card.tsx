@@ -19,10 +19,11 @@ export function RecommendationCard({ result }: { result: RecommendationResult })
   const locale = useLocale();
   const specialty = localized(result.specialty, locale);
 
-  const header = (
-    <div className="flex flex-wrap items-center gap-2">
+  const badges = (
+    <div className="flex flex-wrap items-center justify-center gap-2">
       <Badge
         className={cn(
+          "rounded-full px-4 py-1.5 text-[13px] font-semibold",
           result.urgency === "urgent"
             ? "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
             : "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
@@ -30,15 +31,21 @@ export function RecommendationCard({ result }: { result: RecommendationResult })
       >
         {t.urgency[result.urgency]}
       </Badge>
-      <span className="text-foreground text-sm font-semibold">{t.nextStep[result.nextStep]}</span>
+      <Badge variant="outline" className="rounded-full px-4 py-1.5 text-[13px] font-medium">
+        {t.nextStep[result.nextStep]}
+      </Badge>
     </div>
   );
 
   if (result.status === "no_match") {
     return (
-      <section className="my-3 flex flex-col gap-3">
-        {header}
-        <Empty className="bg-card border">
+      <section className="my-4 flex flex-col gap-4">
+        <div className="text-center">
+          <h2 className="text-foreground text-xl font-bold">{t.recommendedDoctors(specialty)}</h2>
+          <p className="text-muted-foreground mt-1 text-sm">{t.fromCatalog}</p>
+        </div>
+        {badges}
+        <Empty className="bg-card rounded-2xl border shadow-sm">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <SearchXIcon />
@@ -56,21 +63,21 @@ export function RecommendationCard({ result }: { result: RecommendationResult })
   const [requested, ...nearby] = result.searchedCities;
 
   return (
-    <section className="my-3 flex flex-col gap-3">
-      {header}
-      <div>
-        <h3 className="text-foreground text-base font-semibold">{t.recommendedDoctors(specialty)}</h3>
-        <p className="text-muted-foreground text-xs">{t.fromCatalog}</p>
+    <section className="my-4 flex flex-col gap-5">
+      <div className="text-center">
+        <h2 className="text-foreground text-xl font-bold">{t.recommendedDoctors(specialty)}</h2>
+        <p className="text-muted-foreground mt-1 text-sm">{t.fromCatalog}</p>
       </div>
+      {badges}
       {result.expandedToNearby && requested && nearby.length > 0 && (
-        <Alert>
+        <Alert className="rounded-xl">
           <ArrowRightLeftIcon />
           <AlertDescription>
             {t.expandedNote(localized(requested, locale), cityList(nearby, locale))}
           </AlertDescription>
         </Alert>
       )}
-      <div className="grid gap-3 @md:grid-cols-2 @3xl:grid-cols-3">
+      <div className="grid gap-4 @md:grid-cols-2 @3xl:grid-cols-3">
         {result.doctors.map((doctor) => (
           <DoctorCard key={doctor.id} doctor={doctor} />
         ))}
