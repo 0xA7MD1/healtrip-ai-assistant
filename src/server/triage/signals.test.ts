@@ -18,6 +18,8 @@ describe("screenMessage — the pre-LLM safety gate", () => {
     "عندي ألم في الصدر وضيق في التنفس",
     "كتمة في الصدر وعرق بارد",
     "ألم بالصدر ينتشر إلى الذراع",
+    "أبوي عنده ألم شديد في الصدر ويتعرق",
+    "وجع قوي جداً في صدري مع ضيق تنفس",
   ])("flags a possible cardiac event: %s", (text) => {
     const result = screenMessage(text);
     expect(result.level).toBe("emergency");

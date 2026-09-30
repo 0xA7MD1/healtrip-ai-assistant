@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { NextStep, Urgency, UrgencyAssessment } from "@/lib/agent-contracts";
 import type { SpecialtyCode } from "@/lib/catalog";
 import { classifySignals, SIGNAL_IDS } from "./signals";
 
@@ -52,21 +53,7 @@ export const UrgencyInputSchema = z.object({
 
 export type UrgencyInput = z.infer<typeof UrgencyInputSchema>;
 
-export type Urgency = "emergency" | "needs_screening" | "urgent" | "routine";
-
-export type NextStep =
-  | "go_to_er"
-  | "ask_red_flag_questions"
-  | "see_doctor_within_24h"
-  | "book_specialist"
-  | "seek_second_opinion";
-
-export interface UrgencyAssessment {
-  urgency: Urgency;
-  next_step: NextStep;
-  suggested_specialty: SpecialtyCode;
-  reasons: string[];
-}
+export type { NextStep, Urgency, UrgencyAssessment };
 
 export function assessUrgency(input: UrgencyInput): UrgencyAssessment {
   const suggested_specialty = SPECIALTY_BY_BODY_SYSTEM[input.body_system];

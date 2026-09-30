@@ -1,6 +1,19 @@
 import "server-only";
 import { and, asc, desc, eq, inArray, lte, sql, type SQL } from "drizzle-orm";
-import { NEARBY_CITIES, normalizeArabic, toCityCode, type CountryCode } from "@/lib/catalog";
+import type {
+  CityRef,
+  DoctorCard,
+  DoctorSearchResult,
+  EmergencyInfo,
+  SpecialtyRef,
+} from "@/lib/agent-contracts";
+import {
+  NEARBY_CITIES,
+  normalizeArabic,
+  toCityCode,
+  type CountryCode,
+  type SpecialtyCode,
+} from "@/lib/catalog";
 import { db } from "@/server/db/client";
 import { doctors, emergencyNumbers, hospitals, specialties } from "@/server/db/schema";
 import {
@@ -13,45 +26,8 @@ import {
 /**
  * The only way the app reads provider data. The REST API and the agent's tools are thin
  * adapters over these functions. Every value shown to a patient comes from here.
+ * The shapes returned are defined in `@/lib/agent-contracts`, shared with the UI.
  */
-
-export interface CityRef {
-  code: string;
-  en: string;
-  ar: string;
-  countryCode: string;
-}
-
-export interface DoctorCard {
-  id: string;
-  isSynthetic: boolean;
-  name: { en: string; ar: string };
-  gender: "male" | "female";
-  title: "consultant" | "specialist";
-  specialty: { code: string; en: string; ar: string };
-  hospital: {
-    id: string;
-    name: { en: string; ar: string };
-    city: CityRef;
-    hasEmergency24x7: boolean | null;
-    accreditations: string[];
-  };
-  yearsExperience: number;
-  languages: string[];
-  fee: { amount: number; currency: string };
-  offersSecondOpinion: boolean;
-  offersTelemedicine: boolean;
-  nextAvailableInDays: number;
-}
-
-export interface DoctorSearchResult {
-  doctors: DoctorCard[];
-  /** Cities actually searched (the requested one, plus nearby ones if it had no match). */
-  searchedCities: CityRef[];
-  note: "ok" | "expanded_to_nearby_cities" | "no_match" | "unknown_city";
-  /** Only set when the city was not recognised, so the caller can ask the patient. */
-  knownCities?: CityRef[];
-}
 
 let cityCache: CityRef[] | undefined;
 
@@ -196,19 +172,6 @@ export async function getDoctorsByIds(ids: string[]): Promise<DoctorCard[]> {
   return ids.flatMap((id) => cards.find((c) => c.id === id) ?? []);
 }
 
-export interface EmergencyFacility {
-  id: string;
-  name: { en: string; ar: string };
-  city: CityRef;
-  website: string | null;
-}
-
-export interface EmergencyInfo {
-  country: CountryCode;
-  numbers: { number: string; service: string; name: { en: string; ar: string } }[];
-  facilities: EmergencyFacility[];
-}
-
 export async function findEmergencyFacilities(input: EmergencySearchInput): Promise<EmergencyInfo> {
   const filters = EmergencySearchSchema.parse(input);
   const city = filters.city ? await resolveCity(filters.city) : undefined;
@@ -243,6 +206,22 @@ export async function findEmergencyFacilities(input: EmergencySearchInput): Prom
       website: h.website,
     })),
   };
+}
+
+export async function getSpecialty(code: SpecialtyCode): Promise<SpecialtyRef> {
+  const [row] = await db.select().from(specialties).where(eq(specialties.code, code));
+  return row ? { code: row.code, en: row.nameEn, ar: row.nameAr } : { code, en: code, ar: code };
+}
+
+/** First catalog city named in free text ("... in Riyadh", "بالرياض"), if any. */
+export async function findCityMention(text: string): Promise<CityRef | undefined> {
+  const haystack = normalizeArabic(text.toLowerCase());
+  const cities = await listCities();
+  return cities.find((c) => {
+    const en = c.en.toLowerCase();
+    const names = [en, en.replace(/^al[- ]/, ""), normalizeArabic(c.ar)];
+    return names.some((name) => name.length >= 3 && haystack.includes(name));
+  });
 }
 
 export async function countDoctors(): Promise<number> {

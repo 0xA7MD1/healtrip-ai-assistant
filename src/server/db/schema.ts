@@ -1,4 +1,5 @@
 import { index, integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import type { SpecialtyCode } from "@/lib/catalog";
 
 /**
  * Read-only provider catalog. Built by `pnpm db:seed` from validated JSON and shipped
@@ -8,7 +9,8 @@ import { index, integer, primaryKey, real, sqliteTable, text } from "drizzle-orm
  */
 
 export const specialties = sqliteTable("specialties", {
-  code: text("code").primaryKey(),
+  // The seed validates codes against SPECIALTY_CODES, so the narrower type is sound.
+  code: text("code").$type<SpecialtyCode>().primaryKey(),
   nameEn: text("name_en").notNull(),
   nameAr: text("name_ar").notNull(),
 });

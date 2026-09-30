@@ -1,7 +1,8 @@
+import { describeModels } from "@/server/agent/models";
 import { jsonResponse, newRequestId } from "@/server/http";
 import { countDoctors } from "@/server/providers/service";
 
-/** GET /api/health — liveness plus a catalog check. Reports which keys are set, never their values. */
+/** GET /api/health — liveness plus a catalog check. Reports how many keys are set, never their values. */
 export async function GET() {
   const requestId = newRequestId();
   let catalog: { ok: boolean; doctors?: number } = { ok: false };
@@ -10,15 +11,18 @@ export async function GET() {
   } catch {
     // Reported below as a degraded status.
   }
+  let llm: ReturnType<typeof describeModels> | { error: string };
+  try {
+    llm = describeModels();
+  } catch {
+    llm = { error: "invalid LLM_MODELS" };
+  }
 
   return jsonResponse(
     {
       status: catalog.ok ? "ok" : "degraded",
       catalog,
-      llm: {
-        google: Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY),
-        groq: Boolean(process.env.GROQ_API_KEY),
-      },
+      llm,
     },
     requestId,
     { status: catalog.ok ? 200 : 503 },

@@ -80,7 +80,8 @@ const PATTERNS: Record<SignalId, RegExp[]> = {
   chest_pain: [
     /\bchest (pain|pains|tightness|pressure|discomfort|heaviness)\b/,
     /\b(pain|pressure|tightness) in (my|the) chest\b/,
-    /(الم|وجع|كتمه|ضغط|ثقل|ضيق)\s+(في\s+)?(بال|ال|ب)?صدر/,
+    // Up to two words may sit between the symptom and the chest: "ألم شديد جداً في الصدر".
+    /(الم|وجع|كتمه|ضغط|ثقل|ضيق)(\s+[^\s.,،؛]+){0,2}?\s+(في\s+)?(بال|ال|ب)?صدر/,
     /(يوجعني|يعورني|يالمني)\s+صدري|صدري\s+(يوجعني|يعورني|يالمني)/,
   ],
   breathing_difficulty: [

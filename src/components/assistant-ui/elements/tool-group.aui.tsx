@@ -94,14 +94,17 @@ function ToolGroupRoot({
 
 function ToolGroupTrigger({
   count,
+  label,
   active = false,
   className,
   ...props
 }: React.ComponentProps<typeof CollapsibleTrigger> & {
   count: number;
+  /** Overrides the default "N tool calls" text, e.g. with a localized label. */
+  label?: string;
   active?: boolean;
 }) {
-  const label = `${count} tool ${count === 1 ? "call" : "calls"}`;
+  const text = label ?? `${count} tool ${count === 1 ? "call" : "calls"}`;
 
   return (
     <CollapsibleTrigger
@@ -131,7 +134,7 @@ function ToolGroupTrigger({
           active && "shimmer motion-reduce:animate-none",
         )}
       >
-        {label}
+        {text}
       </span>
       <ChevronDownIcon
         data-slot="tool-group-trigger-chevron"
